@@ -110,8 +110,10 @@
       '</small><br><button onclick="location.reload()">Cuba lagi</button>';
   }
 
-  if (cp && cp.html) show(cp.html);                       // terus papar design dari telefon
-  else boot.then(function (r) { show(r.html); }).catch(fail); // kali pertama
+  if (cp && cp.html) {
+    show(cp.html);                                           // terus papar design dari telefon
+    boot.then(function (r) { if (r.html) location.reload(); }); // design dah berubah: muat semula sekali
+  } else boot.then(function (r) { show(r.html); }).catch(fail); // kali pertama
 })();
 </script>
 </body>
