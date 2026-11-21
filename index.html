@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meroket Kitchen</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#eef1ec;color:#18231c;display:grid;place-items:center;min-height:100vh;text-align:center}
+  .spin{width:42px;height:42px;border:4px solid #d6dfd8;border-top-color:#436610;border-radius:50%;animation:s 1s linear infinite;margin:0 auto 14px}
+  @keyframes s{to{transform:rotate(360deg)}}
+  button{margin-top:12px;background:#d1fc57;border:0;border-radius:20px;padding:10px 18px;font-weight:700;font-size:15px}
+</style>
+</head>
+<body>
+<div id="boot"><div class="spin"></div><b>Meroket Kitchen</b><br><small>Memuatkan menu...</small></div>
+<script>
+(function () {
+  var API = 'https://script.google.com/macros/s/AKfycbzuz_ZPoYQmmpZZy-VTJnQCd0SRhhGBq-7HEn2aFXXMg0WOdG05SKdEvFxLm4LlUo6UBA/exec';
+  var PAGE = document.documentElement.getAttribute('data-page') || 'index';
+
+  function call(action, args) {
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: action, args: args || [] })
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j.ok) throw new Error(j.error || 'Ralat pelayan.');
+      return j.data;
+    });
+  }
+
+  // Pengganti google.script.run supaya page asal boleh jalan di luar Apps Script
+  var shim = '(' + function (API) {
+    function call(action, args) {
+      return fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: action, args: args })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'Ralat pelayan.');
+        return j.data;
+      });
+    }
+    function runner(ok, fail) {
+      return new Proxy({}, { get: function (_, k) {
+        if (k === 'withSuccessHandler') return function (h) { return runner(h, fail); };
+        if (k === 'withFailureHandler') return function (h) { return runner(ok, h); };
+        return function () {
+          var a = Array.prototype.slice.call(arguments);
+          call(k, a).then(function (d) { if (ok) ok(d); }, function (e) {
+            if (fail) fail(e instanceof Error ? e : new Error(String(e)));
+          });
+        };
+      }});
+    }
+    window.google = { script: { run: runner(null, null) } };
+  } + ')(' + JSON.stringify(API) + ');';
+
+  function show(html) {
+    html = html.replace(/<base[^>]*>/i, '');
+    var tag = '<script>' + shim + '<\/script>';
+    html = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, function (m) { return m + tag; }) : tag + html;
+    document.open();
+    document.write(html);
+    document.close();
+  }
+
+  function fail(err) {
+    document.getElementById('boot').innerHTML =
+      '<b>Tak dapat buka borang.</b><br><small>' + String(err && err.message || err).replace(/</g, '&lt;') +
+      '</small><br><button onclick="location.reload()">Cuba lagi</button>';
+  }
+
+  call('page', [PAGE]).then(show).catch(fail);
+})();
+</script>
+</body>
+</html>
