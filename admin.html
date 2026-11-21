@@ -110,10 +110,15 @@
       '</small><br><button onclick="location.reload()">Cuba lagi</button>';
   }
 
+  function whenReady(fn) {
+    // document.open() hanya ganti page bila page pemuat dah habis dimuat
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(fn, 0); });
+    else setTimeout(fn, 0);
+  }
   if (cp && cp.html) {
-    show(cp.html);                                           // terus papar design dari telefon
+    whenReady(function () { show(cp.html); });               // terus papar design dari telefon
     boot.then(function (r) { if (r.html) location.reload(); }); // design dah berubah: muat semula sekali
-  } else boot.then(function (r) { show(r.html); }).catch(fail); // kali pertama
+  } else boot.then(function (r) { whenReady(function () { show(r.html); }); }).catch(fail); // kali pertama
 })();
 </script>
 </body>
