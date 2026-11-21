@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meroket Kitchen</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <style>
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#eef1ec;color:#18231c;display:grid;place-items:center;min-height:100vh;text-align:center}
   .spin{width:42px;height:42px;border:4px solid #d6dfd8;border-top-color:#436610;border-radius:50%;animation:s 1s linear infinite;margin:0 auto 14px}
@@ -17,6 +19,10 @@
 (function () {
   var API = 'https://script.google.com/macros/s/AKfycbzuz_ZPoYQmmpZZy-VTJnQCd0SRhhGBq-7HEn2aFXXMg0WOdG05SKdEvFxLm4LlUo6UBA/exec';
   var PAGE = document.documentElement.getAttribute('data-page') || 'index';
+  var KP = 'mk_page_' + PAGE, KQ = 'mk_qr';
+
+  function getC(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+  function setC(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
   function call(action, args) {
     return fetch(API, {
@@ -29,8 +35,40 @@
     });
   }
 
+  // Satu panggilan: design (kalau berubah) + menu/QR terkini
+  var cp = getC(KP), cq = getC(KQ);
+  var boot = call('boot', [PAGE, cp ? cp.hash : '', cq ? cq.hash : '']).then(function (r) {
+    if (r.html) setC(KP, { hash: r.hash, html: r.html });
+    if (r.config) {
+      if (r.config.qr) setC(KQ, { hash: r.qrHash, data: r.config.qr });
+      else if (r.qrHash && cq && cq.hash === r.qrHash) r.config.qr = cq.data;
+      var lite = JSON.parse(JSON.stringify(r.config)); delete lite.qr;
+      setC('mk_cfg', { cfg: lite, qrHash: r.qrHash || '' });
+    }
+    return r;
+  });
+  window.__mkBoot = boot;
+
   // Pengganti google.script.run supaya page asal boleh jalan di luar Apps Script
   var shim = '(' + function (API) {
+    var usedBoot = false;
+    function getC(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+    function sig(c) { var x = {}; for (var k in c) if (k !== 'qr') x[k] = c[k]; return JSON.stringify(x); }
+    // Menu: papar salinan terakhir serta-merta, kemudian ganti dengan data terkini dari Sheet
+    function fastConfig(ok, fail) {
+      usedBoot = true;
+      var shown = null, c = getC('mk_cfg'), q = getC('mk_qr');
+      if (c && c.cfg && ok) {
+        var cfg = c.cfg;
+        if (q && q.hash && q.hash === c.qrHash) cfg.qr = q.data; else cfg.qr = '';
+        shown = sig(cfg);
+        try { ok(cfg); } catch (e) {}
+      }
+      window.__mkBoot.then(function (r) { return r.config || call('getConfig', []); },
+                           function () { return call('getConfig', []); })
+        .then(function (cfg) { if (sig(cfg) !== shown && ok) ok(cfg); },
+              function (e) { if (shown === null && fail) fail(e instanceof Error ? e : new Error(String(e))); });
+    }
     function call(action, args) {
       return fetch(API, {
         method: 'POST',
@@ -46,6 +84,7 @@
         if (k === 'withSuccessHandler') return function (h) { return runner(h, fail); };
         if (k === 'withFailureHandler') return function (h) { return runner(ok, h); };
         return function () {
+          if (k === 'getConfig' && !usedBoot && window.__mkBoot) return fastConfig(ok, fail);
           var a = Array.prototype.slice.call(arguments);
           call(k, a).then(function (d) { if (ok) ok(d); }, function (e) {
             if (fail) fail(e instanceof Error ? e : new Error(String(e)));
@@ -71,7 +110,8 @@
       '</small><br><button onclick="location.reload()">Cuba lagi</button>';
   }
 
-  call('page', [PAGE]).then(show).catch(fail);
+  if (cp && cp.html) show(cp.html);                       // terus papar design dari telefon
+  else boot.then(function (r) { show(r.html); }).catch(fail); // kali pertama
 })();
 </script>
 </body>
